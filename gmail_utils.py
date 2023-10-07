@@ -10,7 +10,7 @@ import base64
 from email.message import EmailMessage
 
 
-def obtain_gmail_credentials(credentials_file_path):
+def obtain_gmail_credentials(credentials):
     """Shows basic usage of the Gmail API.
     Lists the user's Gmail labels.
     """
@@ -27,7 +27,7 @@ def obtain_gmail_credentials(credentials_file_path):
         if creds and creds.expired and creds.refresh_token:
             creds.refresh(Request())
         else:
-            flow = InstalledAppFlow.from_client_secrets_file(credentials_file_path)
+            flow = InstalledAppFlow.from_client_config(client_config=credentials)
             creds = flow.run_local_server(port=0)
         # Save the credentials for the next run
         with open(token_file_name, 'w') as token:

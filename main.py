@@ -32,7 +32,8 @@ def save_to_file(file_path, content):
 def notify_about_new_articles(new_articles):
     receiver = os.getenv("RECEIVER")
 
-    creds = gmail_utils.obtain_gmail_credentials("credentials.json")
+    oauth_creds = aws_utils.get_parameter_from_parameter_store("/olx-scraper/gmail-api-credentials", True)
+    creds = gmail_utils.obtain_gmail_credentials(oauth_creds)
     message = '\n'.join(new_articles)
     gmail_utils.gmail_send_message(creds, message, receiver, "New OLX articles notification")
 
