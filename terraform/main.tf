@@ -90,7 +90,7 @@ resource "null_resource" "package-python-app" {
 }
 
 resource "aws_ssm_parameter" "gmail_api_credentials" {
-  name = "gmail-api-credentials"
+  name = "/olx-scraper/gmail-api-credentials"
   type = "SecureString"
   value = file("../credentials.json")
 }
