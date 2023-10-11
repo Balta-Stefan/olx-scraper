@@ -23,7 +23,3 @@ variable "scrape_url" {
 variable "browser_path" {
   type = string
 }
-
-variable "browser_driver_version" {
-  type = string
-}

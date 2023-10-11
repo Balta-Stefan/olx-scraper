@@ -8,8 +8,6 @@ from selenium.common.exceptions import TimeoutException
 from selenium.webdriver.chrome.options import ChromiumOptions
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.by import By
-from webdriver_manager.chrome import ChromeDriverManager
-from webdriver_manager.core.os_manager import ChromeType
 
 import gmail_utils
 import aws_utils
@@ -20,7 +18,7 @@ import aws_utils
       - LINKS_BUCKET - bucket which holds a file that specifies all the previously seen articles
       - SCRAPE_URL - URL to scrape
       - BROWSER_PATH - path of the browser executable
-      - BROWSER_DRIVER_VERSION - version of the browser driver
+      - DRIVER_PATH - driver path
 '''
 
 
@@ -72,12 +70,7 @@ prefs = {
 options.add_experimental_option("prefs", prefs)
 
 
-driver = webdriver.Chrome(
-    service=Service(
-        ChromeDriverManager(driver_version=os.getenv("BROWSER_DRIVER_VERSION"), chrome_type=ChromeType.BRAVE).install()
-    )
-    , options=options
-)
+driver = webdriver.Chrome(service=Service(os.getenv("DRIVER_PATH")), options=options)
 
 driver.set_page_load_timeout(10)
 driver.set_script_timeout(10)

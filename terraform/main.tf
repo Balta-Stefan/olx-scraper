@@ -113,7 +113,6 @@ resource "aws_lambda_function" "olx-scraper-lambda" {
       LINKS_BUCKET = aws_s3_bucket.olx-scraper-bucket.bucket
       SCRAPE_URL = var.scrape_url
       BROWSER_PATH = var.browser_path
-      BROWSER_DRIVER_VERSION = var.browser_driver_version
     }
   }
 }
