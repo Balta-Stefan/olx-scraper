@@ -19,7 +19,3 @@ variable "links_bucket" {
 variable "scrape_url" {
   type = string
 }
-
-variable "browser_path" {
-  type = string
-}

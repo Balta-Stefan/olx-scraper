@@ -17,7 +17,6 @@ import aws_utils
       - RECEIVER - email address which receives the notifications
       - LINKS_BUCKET - bucket which holds a file that specifies all the previously seen articles
       - SCRAPE_URL - URL to scrape
-      - BROWSER_PATH - path of the browser executable
       - DRIVER_PATH - driver path
 '''
 

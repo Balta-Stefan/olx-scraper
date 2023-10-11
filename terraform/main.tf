@@ -112,7 +112,6 @@ resource "aws_lambda_function" "olx-scraper-lambda" {
       RECEIVER = var.receiver_email
       LINKS_BUCKET = aws_s3_bucket.olx-scraper-bucket.bucket
       SCRAPE_URL = var.scrape_url
-      BROWSER_PATH = var.browser_path
     }
   }
 }

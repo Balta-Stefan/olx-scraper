@@ -33,6 +33,7 @@ FROM python:3.10-slim
 
 ARG BROWSER_DRIVER_VERSION
 ENV DRIVER_PATH=${FUNCTION_DIR}/chromedriver
+ENV BROWSER_PATH=/usr/bin/chromium
 
 # Include global arg in this stage of the build
 ARG FUNCTION_DIR
