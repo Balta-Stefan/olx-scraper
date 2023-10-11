@@ -19,3 +19,7 @@ variable "links_bucket" {
 variable "scrape_url" {
   type = string
 }
+
+variable "lambda_image_url" {
+  type = string
+}

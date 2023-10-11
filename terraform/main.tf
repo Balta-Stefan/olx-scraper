@@ -78,17 +78,6 @@ resource "aws_s3_bucket_acl" "bucket-acl" {
   acl    = "private"
 }
 
-resource "null_resource" "package-python-app" {
-  provisioner "local-exec" {
-    command = <<-EOT
-      cd ..
-      pip install -r requirements.txt
-      zip -r olx-scraper-application.zip ./venv/lib/python3.10/site-packages
-      zip olx-scraper-application.zip aws_utils.py gmail_utils.py main.py
-    EOT
-  }
-}
-
 resource "aws_ssm_parameter" "gmail_api_credentials" {
   name = "/olx-scraper/gmail-api-credentials"
   type = "SecureString"
@@ -97,16 +86,16 @@ resource "aws_ssm_parameter" "gmail_api_credentials" {
 
 resource "aws_lambda_function" "olx-scraper-lambda" {
   depends_on = [
-    null_resource.package-python-app,
     aws_s3_bucket.olx-scraper-bucket,
     aws_ssm_parameter.gmail_api_credentials
   ]
 
   function_name = "olx-scraper-lambda"
   role          = aws_iam_role.olx-scraper-role.arn
-  filename = "../olx-scraper-application.zip"
-  runtime = "python3.10"
-  handler = "main.py"
+  image_uri = var.lambda_image_url
+  package_type = "Image"
+  timeout = "30"
+  memory_size = "512"
   environment {
     variables = {
       RECEIVER = var.receiver_email

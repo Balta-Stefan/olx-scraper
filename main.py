@@ -35,7 +35,7 @@ def notify_about_new_articles(new_articles):
     gmail_utils.gmail_send_message(creds, message, receiver, "New OLX articles notification")
 
 
-def load_old_articles():
+def load_old_articles(links_object_name, bucket):
     links = []
     if aws_utils.download_file(links_object_name, bucket):
         with open(links_object_name, 'r') as file:
@@ -45,72 +45,79 @@ def load_old_articles():
     return links
 
 
-links_object_name = "links.txt"
+def lambda_handler(event, context):
+    links_object_name = "links.txt"
 
-bucket = os.getenv("LINKS_BUCKET")
-old_articles = load_old_articles()
-if len(old_articles) == 0:
-    logging.info("Haven't found any old articles in the S3 object.")
+    bucket = os.getenv("LINKS_BUCKET")
+    old_articles = load_old_articles(links_object_name, bucket)
+    if len(old_articles) == 0:
+        logging.info("Haven't found any old articles in the S3 object.")
 
-url = os.getenv("SCRAPE_URL")
+    url = os.getenv("SCRAPE_URL")
 
-brave_path = os.getenv("BROWSER_PATH")
+    browser_path = os.getenv("BROWSER_PATH")
 
-options = ChromiumOptions()
-options.binary_location = brave_path
-options.add_argument("--headless")
-options.add_argument('--disable-gpu')
-options.add_argument("--disable-extensions")
+    options = ChromiumOptions()
+    options.binary_location = browser_path
+    options.add_argument('--no-sandbox')
+    options.add_argument("--headless")
+    options.add_argument('--disable-gpu')
+    options.add_argument("--disable-extensions")
+    options.add_argument("--disable-dev-shm-usage")
 
-# Disable images
-prefs = {
-    "profile.managed_default_content_settings.images": 2  # 2 means block images
-}
-options.add_experimental_option("prefs", prefs)
+    # without some of these, chrome will fail to launch in a container on AWS Lambda, but will work in local container
+    options.add_argument("--remote-debugging-port=9230")
+    options.add_argument("--single-process")
+    options.add_argument("--disable-dev-tools")
+    options.add_argument("--no-zygote")
 
+    # Disable images
+    prefs = {
+        "profile.managed_default_content_settings.images": 2  # 2 means block images
+    }
+    options.add_experimental_option("prefs", prefs)
 
-driver = webdriver.Chrome(service=Service(os.getenv("DRIVER_PATH")), options=options)
+    driver_path = os.getenv("DRIVER_PATH")
+    print("driver path is: ", driver_path)
+    driver = webdriver.Chrome(service=Service(os.getenv("DRIVER_PATH")), options=options)
+    driver.set_page_load_timeout(10)
+    driver.set_script_timeout(10)
+    driver.implicitly_wait(10)
 
-driver.set_page_load_timeout(10)
-driver.set_script_timeout(10)
-driver.implicitly_wait(10)
+    href_pattern = re.compile(r'/artikal/[0-9]+')
 
+    try:
+        driver.get(url)
+    except TimeoutException as e:
+        print("Page load timeout occurred. Refreshing.")
+        driver.refresh()
 
-href_pattern = re.compile(r'/artikal/[0-9]+')
+    links = []
+    try:
+        links = driver.find_elements(By.TAG_NAME, "a")
+    except TimeoutException as te:
+        print("Couldn't get <a> tags from the page. ", te)
+        time.sleep(5)
+        driver.refresh()
 
-try:
-    driver.get(url)
-except TimeoutException as e:
-    print("Page load timeout occurred. Refreshing.")
-    driver.refresh()
+    replacement_articles = []
+    new_articles = []
+    found_new = False
 
-links = []
-try:
-    links = driver.find_elements(By.TAG_NAME, "a")
-except TimeoutException as te:
-    print("Couldn't get <a> tags from the page. ", te)
-    time.sleep(5)
-    driver.refresh()
+    for link in links:
+        href = link.get_attribute("href")
+        if re.search(href_pattern, href):
+            print(href)
+            replacement_articles.append(href)
+            if href not in old_articles:
+                found_new = True
+                new_articles.append(href)
 
-replacement_articles = []
-new_articles = []
-found_new = False
+    if found_new:
+        notify_about_new_articles(new_articles)
 
-for link in links:
-    href = link.get_attribute("href")
-    if re.search(r'/artikal/[0-9]+', href):
-        print(href)
-        replacement_articles.append(href)
-        if href not in old_articles:
-            found_new = True
-            new_articles.append(href)
-
-
-if found_new:
-    notify_about_new_articles(new_articles)
-
-    save_to_file(links_object_name, '\n'.join(new_articles))
-    aws_utils.upload_file(links_object_name, bucket)
+        save_to_file(links_object_name, '\n'.join(new_articles))
+        aws_utils.upload_file(links_object_name, bucket)
 
 
 # while True:
