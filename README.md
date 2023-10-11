@@ -1,4 +1,4 @@
-# A simple web scraper that scrapes the website [https://olx.ba](). 
+# A simple web scraper that scrapes the website [olx.ba](https://olx.ba). 
 
 It performs the following:
 - fetches articles from the given URL
