@@ -13,6 +13,10 @@ def get_parameter_from_parameter_store(name, is_secret):
     return response["Parameter"]["Value"]
 
 
+def update_parameter_in_parameter_store(name, value, parameter_type):
+    return ssm_client.put_parameter(Name=name, Value=value, Type=parameter_type, Overwrite=True)
+
+
 def download_file(file_name, bucket, object_name=None):
     if object_name is None:
         object_name = os.path.basename(file_name)
@@ -59,7 +63,7 @@ def delete_directory(bucket, directory):
 
     objects = s3_client.list_objects(Bucket=bucket, Prefix=directory)
 
-    for object in objects['Contents']:
-        s3_client.delete_object(Bucket=bucket, Key=object['Key'])
+    for bucket_object in objects['Contents']:
+        s3_client.delete_object(Bucket=bucket, Key=bucket_object['Key'])
 
     s3_client.delete_object(Bucket=bucket, Key=directory)

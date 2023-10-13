@@ -23,3 +23,7 @@ variable "scrape_url" {
 variable "lambda_image_url" {
   type = string
 }
+
+variable "lambda_cron_expression" {
+  type = string
+}

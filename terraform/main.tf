@@ -43,7 +43,6 @@ resource "aws_iam_role_policy" "olx-scraper-policy" {
           "s3:GetObject",
           "logs:CreateLogStream",
           "s3:DeleteObject",
-          "logs:CreateLogGroup",
           "logs:PutLogEvents"
         ]
         Resource = [
@@ -51,6 +50,14 @@ resource "aws_iam_role_policy" "olx-scraper-policy" {
           "arn:aws:logs:*:*:log-group:*:log-stream:*",
           "arn:aws:logs:*:*:log-group:/aws/lambda/olx-scraper:*"
         ]
+      },
+      {
+        Effect = "Allow"
+        Action = [
+          "ssm:GetParameter",
+          "ssm:PutParameter"
+        ]
+        Resource =  "arn:aws:ssm:*:*:parameter/olx-scraper/*"
       }
     ]
   })
@@ -58,6 +65,7 @@ resource "aws_iam_role_policy" "olx-scraper-policy" {
 
 resource "aws_s3_bucket" "olx-scraper-bucket" {
   bucket = "olx-scraper"
+  force_destroy = true
 
   tags = {
     Name = "Olx scraper bucket"
@@ -78,24 +86,46 @@ resource "aws_s3_bucket_acl" "bucket-acl" {
   acl    = "private"
 }
 
+resource "null_resource" "get-gmail-token" {
+  provisioner "local-exec" {
+    command = <<-EOT
+      cd ..
+      venv/bin/python3 bootstrap_gmail_token.py
+    EOT
+  }
+}
+
+data "local_file" "token-file" {
+  depends_on = [null_resource.get-gmail-token]
+
+  filename = "../token.json"
+}
+
 resource "aws_ssm_parameter" "gmail_api_credentials" {
+  depends_on = [data.local_file.token-file]
+
   name = "/olx-scraper/gmail-api-credentials"
   type = "SecureString"
-  value = file("../credentials.json")
+  value = data.local_file.token-file.content #file("../token.json")
+}
+
+variable "lambda_function_name" {
+  default = "olx-scraper-lambda"
 }
 
 resource "aws_lambda_function" "olx-scraper-lambda" {
   depends_on = [
     aws_s3_bucket.olx-scraper-bucket,
-    aws_ssm_parameter.gmail_api_credentials
+    aws_ssm_parameter.gmail_api_credentials,
+    aws_cloudwatch_log_group.lambda_log_group
   ]
 
-  function_name = "olx-scraper-lambda"
+  function_name = var.lambda_function_name
   role          = aws_iam_role.olx-scraper-role.arn
   image_uri = var.lambda_image_url
   package_type = "Image"
   timeout = "30"
-  memory_size = "512"
+  memory_size = "1500"
   environment {
     variables = {
       RECEIVER = var.receiver_email
@@ -103,4 +133,27 @@ resource "aws_lambda_function" "olx-scraper-lambda" {
       SCRAPE_URL = var.scrape_url
     }
   }
+}
+
+resource "aws_cloudwatch_log_group" "lambda_log_group" {
+  name = "/aws/lambda/${var.lambda_function_name}"
+  retention_in_days = 1
+}
+
+resource "aws_cloudwatch_event_rule" "scraper-schedule" {
+  name = "olx-scraper-schedule"
+  description = "Schedule for Lambda Function"
+  schedule_expression = "cron(${var.lambda_cron_expression})"
+}
+
+resource "aws_cloudwatch_event_target" "schedule_lambda" {
+  rule = aws_cloudwatch_event_rule.scraper-schedule.name
+  arn = aws_lambda_function.olx-scraper-lambda.arn
+}
+
+resource "aws_lambda_permission" "allow_events_bridge_to_run_lambda" {
+  statement_id = "AllowExecutionFromCloudWatch"
+  action = "lambda:InvokeFunction"
+  function_name = aws_lambda_function.olx-scraper-lambda.function_name
+  principal = "events.amazonaws.com"
 }

@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -20,6 +21,15 @@ import aws_utils
       - DRIVER_PATH - driver path
 '''
 
+gmail_api_credentials_parameter_name = "/olx-scraper/gmail-api-credentials"
+links_object_name = "links.txt"
+
+RECEIVER_EMAIL_ENVIRONMENT_VARIABLE_NAME = "RECEIVER"
+LINKS_BUCKET_ENVIRONMENT_VARIABLE_NAME = "LINKS_BUCKET"
+SCRAPE_URL_ENVIRONMENT_VARIABLE_NAME = "SCRAPE_URL"
+BROWSER_PATH_ENVIRONMENT_VARIABLE_NAME = "BROWSER_PATH"
+DRIVER_PATH_ENVIRONMENT_VARIABLE_NAME = "DRIVER_PATH"
+
 
 def save_to_file(file_path, content):
     with open(file_path, 'w') as file:
@@ -27,18 +37,22 @@ def save_to_file(file_path, content):
 
 
 def notify_about_new_articles(new_articles):
-    receiver = os.getenv("RECEIVER")
+    receiver = os.getenv(RECEIVER_EMAIL_ENVIRONMENT_VARIABLE_NAME)
 
-    oauth_creds = aws_utils.get_parameter_from_parameter_store("/olx-scraper/gmail-api-credentials", True)
-    creds = gmail_utils.obtain_gmail_credentials(oauth_creds)
+    oauth_creds = json.loads(aws_utils.get_parameter_from_parameter_store(gmail_api_credentials_parameter_name, True))
+
+    token_refreshed, creds = gmail_utils.obtain_gmail_credentials(oauth_creds)
+    if token_refreshed:
+        aws_utils.update_parameter_in_parameter_store(gmail_api_credentials_parameter_name, creds.to_json(), parameter_type="SecureString")
+
     message = '\n'.join(new_articles)
     gmail_utils.gmail_send_message(creds, message, receiver, "New OLX articles notification")
 
 
-def load_old_articles(links_object_name, bucket):
+def load_old_articles():
     links = []
-    if aws_utils.download_file(links_object_name, bucket):
-        with open(links_object_name, 'r') as file:
+    if aws_utils.download_file("/tmp/" + links_object_name, os.getenv(LINKS_BUCKET_ENVIRONMENT_VARIABLE_NAME), object_name=links_object_name):
+        with open("/tmp/" + links_object_name, 'r') as file:
             for line in file:
                 links.append(line.strip())
 
@@ -46,16 +60,13 @@ def load_old_articles(links_object_name, bucket):
 
 
 def lambda_handler(event, context):
-    links_object_name = "links.txt"
-
-    bucket = os.getenv("LINKS_BUCKET")
-    old_articles = load_old_articles(links_object_name, bucket)
+    old_articles = load_old_articles()
     if len(old_articles) == 0:
         logging.info("Haven't found any old articles in the S3 object.")
 
-    url = os.getenv("SCRAPE_URL")
+    url = os.getenv(SCRAPE_URL_ENVIRONMENT_VARIABLE_NAME)
 
-    browser_path = os.getenv("BROWSER_PATH")
+    browser_path = os.getenv(BROWSER_PATH_ENVIRONMENT_VARIABLE_NAME)
 
     options = ChromiumOptions()
     options.binary_location = browser_path
@@ -77,9 +88,7 @@ def lambda_handler(event, context):
     }
     options.add_experimental_option("prefs", prefs)
 
-    driver_path = os.getenv("DRIVER_PATH")
-    print("driver path is: ", driver_path)
-    driver = webdriver.Chrome(service=Service(os.getenv("DRIVER_PATH")), options=options)
+    driver = webdriver.Chrome(service=Service(os.getenv(DRIVER_PATH_ENVIRONMENT_VARIABLE_NAME)), options=options)
     driver.set_page_load_timeout(10)
     driver.set_script_timeout(10)
     driver.implicitly_wait(10)
@@ -116,8 +125,12 @@ def lambda_handler(event, context):
     if found_new:
         notify_about_new_articles(new_articles)
 
-        save_to_file(links_object_name, '\n'.join(new_articles))
-        aws_utils.upload_file(links_object_name, bucket)
+        save_to_file("/tmp/" + links_object_name, '\n'.join(new_articles))
+        aws_utils.upload_file("/tmp/" + links_object_name, os.getenv(LINKS_BUCKET_ENVIRONMENT_VARIABLE_NAME))
+
+    return {
+        'statusCode': 200,
+    }
 
 
 # while True:
