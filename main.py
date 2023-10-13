@@ -116,7 +116,6 @@ def lambda_handler(event, context):
     for link in links:
         href = link.get_attribute("href")
         if re.search(href_pattern, href):
-            print(href)
             replacement_articles.append(href)
             if href not in old_articles:
                 found_new = True
