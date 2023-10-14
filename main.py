@@ -124,7 +124,7 @@ def lambda_handler(event, context):
     if found_new:
         notify_about_new_articles(new_articles)
 
-        save_to_file("/tmp/" + links_object_name, '\n'.join(new_articles))
+        save_to_file("/tmp/" + links_object_name, '\n'.join(replacement_articles))
         aws_utils.upload_file("/tmp/" + links_object_name, os.getenv(LINKS_BUCKET_ENVIRONMENT_VARIABLE_NAME))
 
     return {
