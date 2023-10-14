@@ -35,3 +35,7 @@ terraform.rc
 
 # Ignore zip files
 *.zip
+
+# Ignore credentials
+credentials.json
+token.json
